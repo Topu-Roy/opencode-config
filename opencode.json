@@ -1,0 +1,162 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "build",
+  "instructions": [
+    "AGENTS.md",
+    "instructions/INSTRUCTIONS.md",
+    "skills/security-review/SKILL.md",
+    "skills/coding-standards/SKILL.md",
+    "<project root>/DESIGN.md",
+    "skills/frontend-patterns/SKILL.md",
+    "skills/backend-patterns/SKILL.md",
+    "skills/api-design/SKILL.md",
+    "skills/strategic-compact/SKILL.md",
+    "skills/eval-harness/SKILL.md"
+  ],
+  "plugin": ["./plugins"],
+  "agent": {
+    "build": {
+      "description": "Primary coding agent for development work",
+      "mode": "primary",
+      "tools": {
+        "write": true,
+        "edit": true,
+        "bash": true,
+        "read": true,
+        "changed-files": true
+      }
+    },
+    "planner": {
+      "description": "Expert planning specialist for complex features and refactoring. Use for implementation planning, architectural changes, or complex refactoring.",
+      "mode": "subagent",
+      "prompt": "{file:prompts/agents/planner.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "architect": {
+      "description": "Software architecture specialist for system design, scalability, and technical decision-making.",
+      "mode": "subagent",
+      "prompt": "{file:prompts/agents/architect.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "code-reviewer": {
+      "description": "Expert code review specialist. Reviews code for quality, security, and maintainability. Use immediately after writing or modifying code.",
+      "mode": "subagent",
+      "prompt": "{file:prompts/agents/code-reviewer.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "security-reviewer": {
+      "description": "Security vulnerability detection and remediation specialist. Use after writing code that handles user input, authentication, API endpoints, or sensitive data.",
+      "mode": "subagent",
+      "prompt": "{file:prompts/agents/security-reviewer.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": true,
+        "edit": true
+      }
+    },
+    "doc-updater": {
+      "description": "Documentation and codemap specialist. Use for updating codemaps and documentation.",
+      "mode": "subagent",
+      "prompt": "{file:prompts/agents/doc-updater.txt}",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    },
+    "refactor-cleaner": {
+      "description": "Dead code cleanup and consolidation specialist. Use for removing unused code, duplicates, and refactoring.",
+      "mode": "subagent",
+      "prompt": "{file:prompts/agents/refactor-cleaner.txt}",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    },
+    "database-reviewer": {
+      "description": "PostgreSQL database specialist for query optimization, schema design, security, and performance. Incorporates Supabase best practices.",
+      "mode": "subagent",
+      "prompt": "{file:prompts/agents/database-reviewer.txt}",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    }
+  },
+  "command": {
+    "plan": {
+      "description": "Create a detailed implementation plan for complex features",
+      "template": "{file:commands/plan.md}\n\n$ARGUMENTS",
+      "agent": "planner",
+      "subtask": true
+    },
+    "code-review": {
+      "description": "Review code for quality, security, and maintainability",
+      "template": "{file:commands/code-review.md}\n\n$ARGUMENTS",
+      "agent": "code-reviewer",
+      "subtask": true
+    },
+    "security": {
+      "description": "Run comprehensive security review",
+      "template": "{file:commands/security.md}\n\n$ARGUMENTS",
+      "agent": "security-reviewer",
+      "subtask": true
+    },
+    "refactor-clean": {
+      "description": "Remove dead code and consolidate duplicates",
+      "template": "{file:commands/refactor-clean.md}\n\n$ARGUMENTS",
+      "agent": "refactor-cleaner",
+      "subtask": true
+    },
+    "orchestrate": {
+      "description": "Orchestrate multiple agents for complex tasks",
+      "template": "{file:commands/orchestrate.md}\n\n$ARGUMENTS",
+      "agent": "planner",
+      "subtask": true
+    },
+    "update-codemaps": {
+      "description": "Update codemaps",
+      "template": "{file:commands/update-codemaps.md}\n\n$ARGUMENTS",
+      "agent": "doc-updater",
+      "subtask": true
+    },
+    "setup-pm": {
+      "description": "Configure package manager",
+      "template": "{file:commands/setup-pm.md}\n\n$ARGUMENTS"
+    },
+    "skill-create": {
+      "description": "Generate skills from git history",
+      "template": "{file:commands/skill-create.md}\n\n$ARGUMENTS"
+    },
+    "git-commit": {
+      "description": "Stage and commit with intelligent conventional format",
+      "template": "{file:commands/git-commit.md}\n\n$ARGUMENTS",
+      "agent": "planner",
+      "subtask": true
+    }
+  },
+  "permission": {
+    "mcp_*": "ask"
+  }
+}
