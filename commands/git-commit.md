@@ -1,49 +1,132 @@
 ---
-description: Stage and commit with intelligent conventional format
+description: Stage, analyze, validate, bump version, and commit with detailed conventional format
 agent: planner
 subtask: true
 ---
 
 # Git Commit Command
 
-Stage changes, analyze, generate commit message, commit: $ARGUMENTS
+Stage changes, validate, bump version, commit: $ARGUMENTS
 
-## Process
+## Pre-Commit Workflow
 
-1. **Check branch**: `git branch --show-current`
-2. **Stage all**: `git add -A`
-3. **Analyze staged**: `git diff --cached --stat` + `git diff --cached`
-4. **Determine type** from changed files:
-   - `feat` — new files, new functionality
-   - `fix` — bug fixes, logic corrections
-   - `refactor` — restructuring without behavior change
-   - `docs` — documentation changes
-   - `test` — test files only
-   - `chore` — dependencies, configs, maintenance
-   - `perf` — performance changes
-   - `ci` — CI/CD files
-5. **Generate message**: conventional format with bullet points
-6. **Commit**: `git commit -m "..."`
-7. **Show result**: branch, commit hash, files changed
+### Step 1: Check Current State
+```bash
+git status
+git branch --show-current
+```
 
-## Message Format
+### Step 2: Stage All Changes
+```bash
+git add -A
+git diff --cached --stat
+```
 
+### Step 3: Security Scan - Check Each Staged File
+For EACH file in staged changes, run:
+```bash
+git diff --cached -- "<file>" | grep -iE "(password|secret|key|token|api_key|aws_key|private|credential)" || echo "clean"
+```
+
+- If ANY match found → BLOCK commit, warn user
+- If console.log/debug found → warn but allow (user responsibility)
+
+### Step 4: Analyze Each File Individually
+For EACH staged file, run:
+```bash
+git diff --cached -- "<file>"
+```
+
+Generate detailed change description for each:
+- Function names changed
+- Logic changes
+- New imports
+- Removed code
+
+### Step 5: Determine Commit Type
+Based on analyzed changes:
+- `feat` — new functionality, new files
+- `fix` — bug fixes, logic corrections
+- `refactor` — restructuring without behavior change
+- `docs` — documentation only
+- `test` — test files
+- `chore` — deps, configs, maintenance
+- `perf` — performance
+- `ci` — CI/CD
+
+### Step 6: Version Bump
+Check for version file:
+- `package.json` → `"version": "x.y.z"` in root
+- `pyproject.toml` → `version = "x.y.z"`
+- `Cargo.toml` → `version = "x.y.z"`
+- `VERSION` or `version.txt` → plain text
+
+Determine bump type from changes:
+- `feat` added → MINOR bump
+- `fix` / `refactor` → PATCH bump
+- breaking changes → MAJOR bump
+
+Update version file:
+```bash
+# Replace version in file
+# If major: x+1.0.0
+# If minor: x.y+1.0
+# If patch: x.y.z+1
+```
+
+Stage version bump:
+```bash
+git add <version-file>
+```
+
+### Step 7: Generate Detailed Commit Message
+Format:
 ```
 [type]: [subject]
 
-- [change 1]
-- [change 2]
-- [change 3]
+[Detailed body with bullet points for EACH file]
 
-[files] files changed, [lines] insertions(+), [deletions](-)
+[File stats from git diff --cached --shortstat]
+
+Co-authored-by: [if applicable]
 ```
 
-## Decision
+Example body:
+```
+- src/auth/login.ts: Added JWT token generation, integrated bcrypt for password hashing
+- src/utils/jwt.ts: New file - token creation and validation utilities
+- package.json: Added jsonwebtoken dependency, bumped version to 1.1.0
 
-- If changes include secrets/console.log → warn, block
-- If ambiguous type → default to `chore`
-- If no staged changes → error, exit
+2 files changed, 150 insertions(+), 10 deletions(-)
+```
+
+### Step 8: Execute Commit
+```bash
+git commit -m "..."
+```
+
+### Step 9: Show Result
+```bash
+git log -1 --oneline
+git branch --show-current
+```
+
+## Validation Rules
+
+- **BLOCK** if secrets/keys/tokens detected in staged files
+- **WARN** if console.log present (user decides)
+- **REQUIRED** version file must exist to commit
+
+## Version Bump Logic
+
+| Change Type | Bump |
+|-------------|------|
+| feat (new) | MINOR |
+| fix | PATCH |
+| refactor | PATCH |
+| docs | PATCH |
+| breaking | MAJOR |
 
 ---
 
-**Execute automatically. Show result only.**
+**Execute full workflow. Return detailed result.**
