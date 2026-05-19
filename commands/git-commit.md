@@ -17,27 +17,24 @@ git diff --cached --name-only
 git diff --cached --stat
 ```
 
-### Step 2: Single-Pass Review of Changed Files Only
-For EACH changed file from `git diff --cached --name-only`, run:
-```bash
-git diff --cached -- "<file>"
-```
+### Step 2: Parallel Subagent Review (Batched)
+If **>3 changed files**, spawn subagents in parallel to review batches:
 
-For each file, check BOTH security and changes in ONE pass:
+**Batching strategy:**
+- Split files into groups of 3-5
+- One subagent per batch
+- Each subagent runs `git diff --cached -- "<file>"` for its files
+- Each checks security + change analysis in ONE pass
 
-**Security checks (changed files ONLY):**
-- Scan diff for: `password|secret|key|token|api_key|aws_key|private|credential`
-- If match found → BLOCK commit, warn user
-- Check for `console.log|debugger` → warn but allow
+**Per-file checks (each subagent):**
+- **Security (BLOCK if found):** `password|secret|key|token|api_key|aws_key|private|credential` in diff
+- **Warn (allow):** `console.log|debugger`
+- **Change type:** new file, logic change, import change, removal
 
-**Change analysis (changed files ONLY):**
-- New files added
-- Function/logic changes
-- Import changes
-- Removed code
+If **≤3 changed files**, review directly without subagents.
 
-### Step 3: Determine Commit Type
-Based on the changed files:
+### Step 3: Aggregate and Determine Commit Type
+Collect all subagent results, then determine type:
 - `feat` — new functionality, new files
 - `fix` — bug fixes, logic corrections
 - `refactor` — restructuring without behavior change
@@ -46,6 +43,8 @@ Based on the changed files:
 - `chore` — deps, configs, maintenance
 - `perf` — performance
 - `ci` — CI/CD
+
+Priority: `feat` > `fix` > `refactor` > `perf` > `test` > `docs` > `ci` > `chore`
 
 ### Step 4: Version Bump
 Find version file (check in order):
@@ -82,10 +81,11 @@ git log -1 --oneline
 ```
 
 ## Rules
-- **BLOCK** if secrets found in changed files
-- **WARN** if console.log in changed files
+- **BLOCK** if secrets found in any batch
+- **WARN** if console.log in any batch
 - **ONLY** review files with actual changes
 - **REQUIRED** version file must exist
+- **PARALLELIZE** when >3 files for speed
 
 ## Version Bump Logic
 

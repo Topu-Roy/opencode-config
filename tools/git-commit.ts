@@ -32,30 +32,47 @@ const gitCommitTool: ToolDefinition = tool({
       const output = execSync("git diff --cached --name-only", { cwd, encoding: "utf-8" }).trim()
       changedFiles = output ? output.split("\n") : []
     } catch {
-      // No staged changes yet
+      // No staged changes
     }
 
-    // Analyze only changed files to determine commit type
-    const fileChanges = changedFiles.map((file) => {
-      const ext = path.extname(file)
-      const isTest = /\.(test|spec)\./.test(file) || file.startsWith("test/") || file.startsWith("__tests__/")
-      const isDoc = /\.(md|txt|rst)$/.test(file) || file.startsWith("docs/")
-      const isNew = !fs.existsSync(path.join(cwd, file)) || changedFiles.includes(file)
-      const isConfig = /\.(json|toml|yaml|yml|config)$/.test(file)
+    if (changedFiles.length === 0) {
+      return JSON.stringify({ error: "No staged changes to commit", cwd })
+    }
 
-      return { file, ext, isTest, isDoc, isNew, isConfig }
+    // Analyze each changed file
+    const fileChanges = changedFiles.map((file) => {
+      const ext = path.extname(file).toLowerCase()
+      const dir = path.dirname(file).toLowerCase()
+      const base = path.basename(file).toLowerCase()
+
+      const isTest = /\.(test|spec)\./i.test(file) || /^test[\/\\]/i.test(file) || /^__tests__[\/\\]/i.test(file)
+      const isDoc = /\.(md|mdx|txt|rst)$/i.test(file) || /^docs?[\/\\]/i.test(dir) || /^readme/i.test(base)
+      const isConfig = /\.(json|toml|yaml|yml)$/i.test(file) || /\.(config|rc)$/i.test(file)
+      const isCI = /^\.github[\/\\]/i.test(file) || /^\.circleci[\/\\]/i.test(file) || /^jenkinsfile$/i.test(base)
+      const isStyle = /\.(css|scss|sass|less|tailwind)$/i.test(ext)
+      const isBuild = /^(webpack|vite|rollup|babel|esbuild|tsup)/i.test(base)
+
+      return { file, ext, isTest, isDoc, isNew: true, isConfig, isCI, isStyle, isBuild }
     })
 
-    // Determine type from changed files only
+    // Determine commit type with priority ordering
+    // Priority: feat > fix > perf > refactor > test > docs > ci > chore
     let type = "chore"
-    if (fileChanges.some((f) => f.isTest)) {
-      type = "test"
+    const hasCode = fileChanges.some((f) => !f.isDoc && !f.isConfig && !f.isCI)
+    const hasNewFiles = fileChanges.some((f) => f.isNew && !f.isConfig && !f.isDoc && !f.isTest)
+
+    if (fileChanges.every((f) => f.isCI)) {
+      type = "ci"
     } else if (fileChanges.every((f) => f.isDoc)) {
       type = "docs"
-    } else if (fileChanges.some((f) => f.isNew && !f.isConfig && !f.isDoc)) {
+    } else if (fileChanges.every((f) => f.isTest)) {
+      type = "test"
+    } else if (hasNewFiles && hasCode) {
       type = "feat"
-    } else if (fileChanges.some((f) => f.ext === ".ts" || f.ext === ".js")) {
+    } else if (fileChanges.some((f) => f.ext === ".ts" || f.ext === ".tsx" || f.ext === ".js" || f.ext === ".jsx")) {
       type = "fix"
+    } else if (hasCode) {
+      type = "refactor"
     }
 
     const summary = type === "feat" ? "add new feature" : type === "fix" ? "fix issue" : `${type} changes`
@@ -82,6 +99,7 @@ const gitCommitTool: ToolDefinition = tool({
       commitMessage: commitMsg,
       type,
       changedFiles,
+      fileCount: changedFiles.length,
       note: "Review the staged files with 'git diff --cached' before committing",
     })
   },
