@@ -8,43 +8,36 @@ subtask: true
 
 Stage changes, validate, bump version, commit: $ARGUMENTS
 
-## Pre-Commit Workflow
+## Workflow
 
-### Step 1: Check Current State
-```bash
-git status
-git branch --show-current
-```
-
-### Step 2: Stage All Changes
+### Step 1: Stage and List Changed Files
 ```bash
 git add -A
+git diff --cached --name-only
 git diff --cached --stat
 ```
 
-### Step 3: Security Scan - Check Each Staged File
-For EACH file in staged changes, run:
-```bash
-git diff --cached -- "<file>" | grep -iE "(password|secret|key|token|api_key|aws_key|private|credential)" || echo "clean"
-```
-
-- If ANY match found → BLOCK commit, warn user
-- If console.log/debug found → warn but allow (user responsibility)
-
-### Step 4: Analyze Each File Individually
-For EACH staged file, run:
+### Step 2: Single-Pass Review of Changed Files Only
+For EACH changed file from `git diff --cached --name-only`, run:
 ```bash
 git diff --cached -- "<file>"
 ```
 
-Generate detailed change description for each:
-- Function names changed
-- Logic changes
-- New imports
+For each file, check BOTH security and changes in ONE pass:
+
+**Security checks (changed files ONLY):**
+- Scan diff for: `password|secret|key|token|api_key|aws_key|private|credential`
+- If match found → BLOCK commit, warn user
+- Check for `console.log|debugger` → warn but allow
+
+**Change analysis (changed files ONLY):**
+- New files added
+- Function/logic changes
+- Import changes
 - Removed code
 
-### Step 5: Determine Commit Type
-Based on analyzed changes:
+### Step 3: Determine Commit Type
+Based on the changed files:
 - `feat` — new functionality, new files
 - `fix` — bug fixes, logic corrections
 - `refactor` — restructuring without behavior change
@@ -54,68 +47,45 @@ Based on analyzed changes:
 - `perf` — performance
 - `ci` — CI/CD
 
-### Step 6: Version Bump
-Check for version file:
-- `package.json` → `"version": "x.y.z"` in root
+### Step 4: Version Bump
+Find version file (check in order):
+- `package.json` → `"version": "x.y.z"`
 - `pyproject.toml` → `version = "x.y.z"`
 - `Cargo.toml` → `version = "x.y.z"`
-- `VERSION` or `version.txt` → plain text
+- `VERSION` or `version.txt`
 
-Determine bump type from changes:
-- `feat` added → MINOR bump
-- `fix` / `refactor` → PATCH bump
-- breaking changes → MAJOR bump
+Bump based on commit type:
+- `feat` → MINOR
+- `fix` / `refactor` / `docs` → PATCH
+- breaking → MAJOR
 
-Update version file:
-```bash
-# Replace version in file
-# If major: x+1.0.0
-# If minor: x.y+1.0
-# If patch: x.y.z+1
-```
-
-Stage version bump:
+Update and stage:
 ```bash
 git add <version-file>
 ```
 
-### Step 7: Generate Detailed Commit Message
-Format:
+### Step 5: Commit and Show Result
+Generate commit message:
 ```
 [type]: [subject]
 
-[Detailed body with bullet points for EACH file]
+- <file1>: <change summary>
+- <file2>: <change summary>
 
-[File stats from git diff --cached --shortstat]
-
-Co-authored-by: [if applicable]
+<stats from git diff --cached --shortstat>
 ```
 
-Example body:
-```
-- src/auth/login.ts: Added JWT token generation, integrated bcrypt for password hashing
-- src/utils/jwt.ts: New file - token creation and validation utilities
-- package.json: Added jsonwebtoken dependency, bumped version to 1.1.0
-
-2 files changed, 150 insertions(+), 10 deletions(-)
-```
-
-### Step 8: Execute Commit
+Execute:
 ```bash
 git commit -m "..."
-```
-
-### Step 9: Show Result
-```bash
 git log -1 --oneline
-git branch --show-current
 ```
 
-## Validation Rules
-
-- **BLOCK** if secrets/keys/tokens detected in staged files
-- **WARN** if console.log present (user decides)
-- **REQUIRED** version file must exist to commit
+## Rules
+- **BLOCK** if secrets found in changed files
+- **WARN** if console.log in changed files
+- **ONLY** review files with actual changes
+- **REQUIRED** version file must exist
 
 ## Version Bump Logic
 
@@ -129,4 +99,4 @@ git branch --show-current
 
 ---
 
-**Execute full workflow. Return detailed result.**
+**Execute workflow. Return concise result.**

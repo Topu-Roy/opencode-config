@@ -8,6 +8,7 @@
 import { tool, type ToolDefinition } from "@opencode-ai/plugin/tool"
 import * as path from "path"
 import * as fs from "fs"
+import { execSync } from "child_process"
 
 const gitCommitTool: ToolDefinition = tool({
   description:
@@ -25,34 +26,39 @@ const gitCommitTool: ToolDefinition = tool({
       return JSON.stringify({ error: "Not a git repository", cwd })
     }
 
-    const pkgJson = path.join(cwd, "package.json")
-    const hasPkg = fs.existsSync(pkgJson)
-
-    let type = "chore"
-    let summary = "update files"
-
-    if (hasPkg) {
-      try {
-        const pkg = JSON.parse(fs.readFileSync(pkgJson, "utf-8"))
-        const deps = { ...pkg.dependencies, ...pkg.devDependencies }
-        const hasTests = deps.vitest || deps.jest || deps.mocha || deps.ava
-        const hasReact = deps.react || deps["react-dom"]
-        const hasNext = deps.next
-
-        if (hasReact && hasNext) {
-          type = "feat"
-          summary = "add Next.js feature"
-        } else if (hasReact) {
-          type = "feat"
-          summary = "add React component"
-        } else if (hasTests) {
-          type = "test"
-          summary = "add tests"
-        }
-      } catch {
-        // ignore parse errors
-      }
+    // Get only changed files from staged diff
+    let changedFiles: string[] = []
+    try {
+      const output = execSync("git diff --cached --name-only", { cwd, encoding: "utf-8" }).trim()
+      changedFiles = output ? output.split("\n") : []
+    } catch {
+      // No staged changes yet
     }
+
+    // Analyze only changed files to determine commit type
+    const fileChanges = changedFiles.map((file) => {
+      const ext = path.extname(file)
+      const isTest = /\.(test|spec)\./.test(file) || file.startsWith("test/") || file.startsWith("__tests__/")
+      const isDoc = /\.(md|txt|rst)$/.test(file) || file.startsWith("docs/")
+      const isNew = !fs.existsSync(path.join(cwd, file)) || changedFiles.includes(file)
+      const isConfig = /\.(json|toml|yaml|yml|config)$/.test(file)
+
+      return { file, ext, isTest, isDoc, isNew, isConfig }
+    })
+
+    // Determine type from changed files only
+    let type = "chore"
+    if (fileChanges.some((f) => f.isTest)) {
+      type = "test"
+    } else if (fileChanges.every((f) => f.isDoc)) {
+      type = "docs"
+    } else if (fileChanges.some((f) => f.isNew && !f.isConfig && !f.isDoc)) {
+      type = "feat"
+    } else if (fileChanges.some((f) => f.ext === ".ts" || f.ext === ".js")) {
+      type = "fix"
+    }
+
+    const summary = type === "feat" ? "add new feature" : type === "fix" ? "fix issue" : `${type} changes`
 
     const commitMsg = userMessage || `${type}: ${summary}`
 
@@ -75,6 +81,7 @@ const gitCommitTool: ToolDefinition = tool({
       script,
       commitMessage: commitMsg,
       type,
+      changedFiles,
       note: "Review the staged files with 'git diff --cached' before committing",
     })
   },
